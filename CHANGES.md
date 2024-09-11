@@ -11,6 +11,7 @@
 ##### Fixes :wrench:
 
 - Use first geometryBuffer if no best match found in I3SNode [#12132](https://github.com/CesiumGS/cesium/pull/12132)
+- test
 
 ### 1.121.1 - 2024-09-04
 
