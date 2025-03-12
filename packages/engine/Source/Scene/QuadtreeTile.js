@@ -163,6 +163,15 @@ QuadtreeTile.prototype._getCacheKey = function (cartographic) {
 };
 
 /**
+ * Sets a position on the cache for this tile.
+ *
+ * @memberof QuadtreeTile
+ */
+QuadtreeTile.prototype.setPositionCacheEntry = function (cacheKey, value) {
+  this._positionCache.set(cacheKey, value);
+};
+
+/**
  * Clears the position cache for this tile.
  * This function removes all cached positions that were previously stored
  * to optimize height computations.

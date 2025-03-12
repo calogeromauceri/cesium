@@ -1516,7 +1516,7 @@ function updateHeights(primitive, frameState) {
 
           // Store the computed position in the cache for future reuse
           const cacheKey = tile._getCacheKey(data.positionCartographic);
-          tile._positionCache.set(cacheKey, {
+          tile.setPositionCacheEntry(cacheKey, {
             positionOnEllipsoidSurface: data.positionOnEllipsoidSurface,
           });
         }
@@ -1524,6 +1524,7 @@ function updateHeights(primitive, frameState) {
 
       const currentTime = getTimestamp();
       if (currentTime >= endTime) {
+        // Uncomment for debugging: logs when time slice exceeded limit
         // const deltaTime = currentTime - startTime;
         // console.log(`Time slice exceeded: Δt = ${deltaTime} ms (limit: ${timeSlice} ms)`);
         // console.log(`Queue size: tilesToUpdateHeights.length = ${tilesToUpdateHeights.length}`);
