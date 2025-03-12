@@ -74,6 +74,9 @@ function QuadtreeTile(options) {
   this._lastSelectionResultFrame = undefined;
   this._loadedCallbacks = {};
 
+  // Cache for storing computed positionOnEllipsoidSurface values per tile to avoid redundant calculations
+  this._positionCache = new Map();
+
   /**
    * Gets or sets the current state of the tile in the tile load pipeline.
    * @type {QuadtreeTileLoadState}
@@ -143,6 +146,37 @@ QuadtreeTile.createLevelZeroTiles = function (tilingScheme) {
   return result;
 };
 
+/**
+ * Generates a unique cache key for a given cartographic position.
+ * The key is based on the longitude and latitude values rounded to a fixed precision
+ * to mitigate floating-point inconsistencies.
+ *
+ * @memberof QuadtreeTile
+ *
+ * @param {Cartographic} cartographic The cartographic coordinates (longitude, latitude).
+ * @returns {string} A string key representing the position, formatted as "longitude-latitude".
+ */
+QuadtreeTile.prototype._getCacheKey = function (cartographic) {
+  const lon = cartographic.longitude.toFixed(7);
+  const lat = cartographic.latitude.toFixed(7);
+  return `${lon}-${lat}`;
+};
+
+/**
+ * Clears the position cache for this tile.
+ * This function removes all cached positions that were previously stored
+ * to optimize height computations.
+ *
+ * @memberof QuadtreeTile
+ */
+QuadtreeTile.prototype.clearPositionCache = function () {
+  if (this._positionCache.size > 0) {
+    // Uncomment for debugging: logs the number of entries being cleared.
+    // console.log(`Clearing ${this._positionCache.size} at level ${this.level}`);
+    this._positionCache.clear();
+  }
+};
+
 QuadtreeTile.prototype._updateCustomData = function (
   frameNumber,
   added,
@@ -164,6 +198,15 @@ QuadtreeTile.prototype._updateCustomData = function (
     for (i = 0; i < added.length; ++i) {
       data = added[i];
       if (Rectangle.contains(rectangle, data.positionCartographic)) {
+        // Check the cache for precomputed position data
+        const cachedData = this._positionCache.get(
+          this._getCacheKey(data.positionCartographic),
+        );
+        if (cachedData) {
+          data.positionOnEllipsoidSurface =
+            cachedData.positionOnEllipsoidSurface;
+          data.level = this.level;
+        }
         customData.push(data);
       }
     }
@@ -180,6 +223,15 @@ QuadtreeTile.prototype._updateCustomData = function (
       for (i = 0; i < parentCustomData.length; ++i) {
         data = parentCustomData[i];
         if (Rectangle.contains(rectangle, data.positionCartographic)) {
+          // Check the cache for precomputed position data
+          const cachedData = this._positionCache.get(
+            this._getCacheKey(data.positionCartographic),
+          );
+          if (cachedData) {
+            data.positionOnEllipsoidSurface =
+              cachedData.positionOnEllipsoidSurface;
+            data.level = this.level;
+          }
           customData.push(data);
         }
       }
@@ -513,6 +565,8 @@ QuadtreeTile.prototype.findTileToNorth = function (levelZeroTiles) {
  * @memberof QuadtreeTile
  */
 QuadtreeTile.prototype.freeResources = function () {
+  // Clears cached heights when the tile is freed
+  this.clearPositionCache();
   this.state = QuadtreeTileLoadState.START;
   this.renderable = false;
   this.upsampledFromParent = false;

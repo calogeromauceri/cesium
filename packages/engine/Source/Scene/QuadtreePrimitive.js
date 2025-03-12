@@ -1418,6 +1418,8 @@ function updateHeights(primitive, frameState) {
       ) {
         tryNextFrame.push(tile);
       }
+      // Ensure stale position cache is cleared
+      tile.clearPositionCache();
       tilesToUpdateHeights.shift();
       primitive._lastTileIndex = 0;
       continue;
@@ -1511,10 +1513,21 @@ function updateHeights(primitive, frameState) {
             data.callback(position);
           }
           data.level = tile.level;
+
+          // Store the computed position in the cache for future reuse
+          const cacheKey = tile._getCacheKey(data.positionCartographic);
+          tile._positionCache.set(cacheKey, {
+            positionOnEllipsoidSurface: data.positionOnEllipsoidSurface,
+          });
         }
       }
 
-      if (getTimestamp() >= endTime) {
+      const currentTime = getTimestamp();
+      if (currentTime >= endTime) {
+        // const deltaTime = currentTime - startTime;
+        // console.log(`Time slice exceeded: Δt = ${deltaTime} ms (limit: ${timeSlice} ms)`);
+        // console.log(`Queue size: tilesToUpdateHeights.length = ${tilesToUpdateHeights.length}`);
+        // console.log(`Last processed tile index: ${primitive._lastTileIndex}`);
         timeSliceMax = true;
         break;
       }
