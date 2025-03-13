@@ -3904,6 +3904,7 @@ Scene.prototype.updateHeight = function (
   cartographic,
   callback,
   heightReference,
+  id,
 ) {
   //>>includeStart('debug', pragmas.debug);
   Check.typeOf.func("callback", callback);
@@ -3932,6 +3933,7 @@ Scene.prototype.updateHeight = function (
     terrainRemoveCallback = this.globe._surface.updateHeight(
       cartographic,
       callbackWrapper,
+      id,
     );
   }
 
@@ -3950,6 +3952,7 @@ Scene.prototype.updateHeight = function (
       cartographic,
       callbackWrapper,
       ellipsoid,
+      id,
     );
     tilesetRemoveCallbacks[primitive.id] = tilesetRemoveCallback;
   };

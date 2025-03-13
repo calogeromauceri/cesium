@@ -2283,6 +2283,7 @@ function updateClamping(model) {
     cartoPosition,
     getUpdateHeightCallback(model, ellipsoid, cartoPosition),
     model.heightReference,
+    model.id,
   );
 
   // Set the correct height now

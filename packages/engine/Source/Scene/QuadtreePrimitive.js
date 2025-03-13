@@ -163,6 +163,8 @@ function QuadtreePrimitive(options) {
   this._lastTileLoadQueueLength = 0;
 
   this._lastSelectionFrameNumber = undefined;
+
+  this._updateHeightsCache = new WeakMap();
 }
 
 Object.defineProperties(QuadtreePrimitive.prototype, {
@@ -277,9 +279,14 @@ QuadtreePrimitive.prototype.forEachRenderedTile = function (tileFunction) {
  * @param {Function} callback The function to be called when a new tile is loaded containing the updated cartographic.
  * @returns {Function} The function to remove this callback from the quadtree.
  */
-QuadtreePrimitive.prototype.updateHeight = function (cartographic, callback) {
+QuadtreePrimitive.prototype.updateHeight = function (
+  cartographic,
+  callback,
+  id,
+) {
   const primitive = this;
   const object = {
+    id: id || null, // Store optional identifier object
     positionOnEllipsoidSurface: undefined,
     positionCartographic: cartographic,
     level: -1,
@@ -1434,6 +1441,29 @@ function updateHeights(primitive, frameState) {
       const upsampledGeometryFromParent =
         defined(terrainData) && terrainData.wasCreatedByUpsampling();
 
+      if (
+        tile.level > data.level &&
+        !upsampledGeometryFromParent &&
+        mode === SceneMode.SCENE3D
+      ) {
+        const cacheData = primitive._updateHeightsCache.get(data.id);
+        if (
+          cacheData &&
+          Cartographic.equals(
+            data.positionCartographic,
+            cacheData.positionCartographic,
+          )
+        ) {
+          console.log(
+            `cache hit ${CesiumMath.toDegrees(data.positionCartographic.longitude).toFixed(7)},${CesiumMath.toDegrees(data.positionCartographic.latitude).toFixed(7)} - level ${cacheData.level}!`,
+          );
+
+          data.level = cacheData.level;
+          data.positionOnEllipsoidSurface =
+            cacheData.positionOnEllipsoidSurface;
+        }
+      }
+
       if (tile.level > data.level && !upsampledGeometryFromParent) {
         if (!defined(data.positionOnEllipsoidSurface)) {
           // cartesian has to be on the ellipsoid surface for `ellipsoid.geodeticSurfaceNormal`
@@ -1511,10 +1541,27 @@ function updateHeights(primitive, frameState) {
             data.callback(position);
           }
           data.level = tile.level;
+
+          // update cache
+          if (data.id) {
+            console.log(
+              `cache set ${CesiumMath.toDegrees(data.positionCartographic.longitude).toFixed(7)},${CesiumMath.toDegrees(data.positionCartographic.latitude).toFixed(7)} - level ${tile.level}! - id ${data.id.id}`,
+            );
+            primitive._updateHeightsCache.set(data.id, {
+              positionOnEllipsoidSurface: data.positionOnEllipsoidSurface,
+              positionCartographic: data.positionCartographic,
+              level: tile.level,
+            });
+          }
         }
       }
 
-      if (getTimestamp() >= endTime) {
+      const currentTime = getTimestamp();
+      if (currentTime >= endTime) {
+        // const deltaTime = currentTime - startTime; // Calculate elapsed time
+        // console.log(`Time slice exceeded: Δt = ${deltaTime} ms (limit: ${timeSlice} ms)`);
+        // console.log(`Queue size: tilesToUpdateHeights.length = ${tilesToUpdateHeights.length}`);
+        // console.log(`Last processed tile index: ${primitive._lastTileIndex}`);
         timeSliceMax = true;
         break;
       }
