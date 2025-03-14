@@ -1437,98 +1437,114 @@ function updateHeights(primitive, frameState) {
         defined(terrainData) && terrainData.wasCreatedByUpsampling();
 
       if (tile.level > data.level && !upsampledGeometryFromParent) {
-        if (!defined(data.positionOnEllipsoidSurface)) {
-          // cartesian has to be on the ellipsoid surface for `ellipsoid.geodeticSurfaceNormal`
-          data.positionOnEllipsoidSurface = Cartesian3.fromRadians(
-            data.positionCartographic.longitude,
-            data.positionCartographic.latitude,
-            0.0,
-            ellipsoid,
-          );
-        }
-
-        if (mode === SceneMode.SCENE3D) {
-          const surfaceNormal = ellipsoid.geodeticSurfaceNormal(
-            data.positionOnEllipsoidSurface,
-            scratchRay.direction,
-          );
-
-          // compute origin point
-
-          // Try to find the intersection point between the surface normal and z-axis.
-          // minimum height (-11500.0) for the terrain set, need to get this information from the terrain provider
-          const rayOrigin = ellipsoid.getSurfaceNormalIntersectionWithZAxis(
-            data.positionOnEllipsoidSurface,
-            11500.0,
-            scratchRay.origin,
-          );
-
-          // Theoretically, not with Earth datums, the intersection point can be outside the ellipsoid
-          if (!defined(rayOrigin)) {
-            // intersection point is outside the ellipsoid, try other value
-            // minimum height (-11500.0) for the terrain set, need to get this information from the terrain provider
-            let minimumHeight = 0.0;
-            if (defined(tile.data.tileBoundingRegion)) {
-              minimumHeight = tile.data.tileBoundingRegion.minimumHeight;
-            }
-            const magnitude = Math.min(minimumHeight, -11500.0);
-
-            // multiply by the *positive* value of the magnitude
-            const vectorToMinimumPoint = Cartesian3.multiplyByScalar(
-              surfaceNormal,
-              Math.abs(magnitude) + 1,
-              scratchPosition,
-            );
-            Cartesian3.subtract(
-              data.positionOnEllipsoidSurface,
-              vectorToMinimumPoint,
-              scratchRay.origin,
+        let position;
+        // find cached entry
+        const cachedData = tile.getPositionCacheEntry(
+          data.positionCartographic,
+        );
+        if (cachedData) {
+          // console.log(`cache hit lon,lat${CesiumMath.toDegrees(data.positionCartographic.longitude)},${CesiumMath.toDegrees(data.positionCartographic.latitude)} - level ${tile.level}!`)
+          position = cachedData.position;
+        } else {
+          if (!defined(data.positionOnEllipsoidSurface)) {
+            // cartesian has to be on the ellipsoid surface for `ellipsoid.geodeticSurfaceNormal`
+            data.positionOnEllipsoidSurface = Cartesian3.fromRadians(
+              data.positionCartographic.longitude,
+              data.positionCartographic.latitude,
+              0.0,
+              ellipsoid,
             );
           }
-        } else {
-          Cartographic.clone(data.positionCartographic, scratchCartographic);
 
-          // minimum height for the terrain set, need to get this information from the terrain provider
-          scratchCartographic.height = -11500.0;
-          projection.project(scratchCartographic, scratchPosition);
-          Cartesian3.fromElements(
-            scratchPosition.z,
-            scratchPosition.x,
-            scratchPosition.y,
+          if (mode === SceneMode.SCENE3D) {
+            const surfaceNormal = ellipsoid.geodeticSurfaceNormal(
+              data.positionOnEllipsoidSurface,
+              scratchRay.direction,
+            );
+
+            // compute origin point
+
+            // Try to find the intersection point between the surface normal and z-axis.
+            // minimum height (-11500.0) for the terrain set, need to get this information from the terrain provider
+            const rayOrigin = ellipsoid.getSurfaceNormalIntersectionWithZAxis(
+              data.positionOnEllipsoidSurface,
+              11500.0,
+              scratchRay.origin,
+            );
+
+            // Theoretically, not with Earth datums, the intersection point can be outside the ellipsoid
+            if (!defined(rayOrigin)) {
+              // intersection point is outside the ellipsoid, try other value
+              // minimum height (-11500.0) for the terrain set, need to get this information from the terrain provider
+              let minimumHeight = 0.0;
+              if (defined(tile.data.tileBoundingRegion)) {
+                minimumHeight = tile.data.tileBoundingRegion.minimumHeight;
+              }
+              const magnitude = Math.min(minimumHeight, -11500.0);
+
+              // multiply by the *positive* value of the magnitude
+              const vectorToMinimumPoint = Cartesian3.multiplyByScalar(
+                surfaceNormal,
+                Math.abs(magnitude) + 1,
+                scratchPosition,
+              );
+              Cartesian3.subtract(
+                data.positionOnEllipsoidSurface,
+                vectorToMinimumPoint,
+                scratchRay.origin,
+              );
+            }
+          } else {
+            Cartographic.clone(data.positionCartographic, scratchCartographic);
+
+            // minimum height for the terrain set, need to get this information from the terrain provider
+            scratchCartographic.height = -11500.0;
+            projection.project(scratchCartographic, scratchPosition);
+            Cartesian3.fromElements(
+              scratchPosition.z,
+              scratchPosition.x,
+              scratchPosition.y,
+              scratchPosition,
+            );
+            Cartesian3.clone(scratchPosition, scratchRay.origin);
+            Cartesian3.clone(Cartesian3.UNIT_X, scratchRay.direction);
+          }
+
+          position = tile.data.pick(
+            scratchRay,
+            mode,
+            projection,
+            false,
             scratchPosition,
           );
-          Cartesian3.clone(scratchPosition, scratchRay.origin);
-          Cartesian3.clone(Cartesian3.UNIT_X, scratchRay.direction);
-        }
 
-        const position = tile.data.pick(
-          scratchRay,
-          mode,
-          projection,
-          false,
-          scratchPosition,
-        );
+          // Store the computed position in the cache for future reuse
+          console.log(
+            `set cache lon,lat=${CesiumMath.toDegrees(data.positionCartographic.longitude)},${CesiumMath.toDegrees(data.positionCartographic.latitude)} - level ${tile.level}!`,
+          );
+          tile.setPositionCacheEntry(data.positionCartographic, {
+            position: position,
+          });
+        }
         if (defined(position)) {
           if (defined(data.callback)) {
             data.callback(position);
           }
           data.level = tile.level;
-
-          // Store the computed position in the cache for future reuse
-          const cacheKey = tile._getCacheKey(data.positionCartographic);
-          tile.setPositionCacheEntry(cacheKey, {
-            positionOnEllipsoidSurface: data.positionOnEllipsoidSurface,
-          });
         }
       }
 
       const currentTime = getTimestamp();
       if (currentTime >= endTime) {
         // Uncomment for debugging: logs when time slice exceeded limit
-        // const deltaTime = currentTime - startTime;
-        // console.log(`Time slice exceeded: Δt = ${deltaTime} ms (limit: ${timeSlice} ms)`);
-        // console.log(`Queue size: tilesToUpdateHeights.length = ${tilesToUpdateHeights.length}`);
-        // console.log(`Last processed tile index: ${primitive._lastTileIndex}`);
+        const deltaTime = currentTime - startTime;
+        console.log(
+          `Time slice exceeded: Δt = ${deltaTime} ms (limit: ${timeSlice} ms)`,
+        );
+        console.log(
+          `Queue size: tilesToUpdateHeights.length = ${tilesToUpdateHeights.length}`,
+        );
+        console.log(`Last processed tile index: ${primitive._lastTileIndex}`);
         timeSliceMax = true;
         break;
       }
