@@ -1443,7 +1443,7 @@ function updateHeights(primitive, frameState) {
           data.positionCartographic,
         );
         if (cachedData) {
-          // console.log(`cache hit lon,lat${CesiumMath.toDegrees(data.positionCartographic.longitude)},${CesiumMath.toDegrees(data.positionCartographic.latitude)} - level ${tile.level}!`)
+          // cache hit
           position = cachedData.position;
         } else {
           if (!defined(data.positionOnEllipsoidSurface)) {
@@ -1518,13 +1518,12 @@ function updateHeights(primitive, frameState) {
             scratchPosition,
           );
 
-          // Store the computed position in the cache for future reuse
-          console.log(
-            `set cache lon,lat=${CesiumMath.toDegrees(data.positionCartographic.longitude)},${CesiumMath.toDegrees(data.positionCartographic.latitude)} - level ${tile.level}!`,
-          );
-          tile.setPositionCacheEntry(data.positionCartographic, {
-            position: position,
-          });
+          if (defined(position)) {
+            // Store the computed position in the cache for future reuse
+            tile.setPositionCacheEntry(data.positionCartographic, {
+              position: position,
+            });
+          }
         }
         if (defined(position)) {
           if (defined(data.callback)) {
@@ -1537,14 +1536,10 @@ function updateHeights(primitive, frameState) {
       const currentTime = getTimestamp();
       if (currentTime >= endTime) {
         // Uncomment for debugging: logs when time slice exceeded limit
-        const deltaTime = currentTime - startTime;
-        console.log(
-          `Time slice exceeded: Δt = ${deltaTime} ms (limit: ${timeSlice} ms)`,
-        );
-        console.log(
-          `Queue size: tilesToUpdateHeights.length = ${tilesToUpdateHeights.length}`,
-        );
-        console.log(`Last processed tile index: ${primitive._lastTileIndex}`);
+        // const deltaTime = currentTime - startTime;
+        // console.log(`Time slice exceeded: Δt = ${deltaTime} ms (limit: ${timeSlice} ms)`);
+        // console.log(`Queue size: tilesToUpdateHeights.length = ${tilesToUpdateHeights.length}`);
+        // console.log(`Last processed tile index: ${primitive._lastTileIndex} - customDataLength ${customDataLength}`);
         timeSliceMax = true;
         break;
       }
